@@ -1,0 +1,24 @@
+{
+  "dimension": 768,
+  "total_vectors": 193,
+  "total_elements": 193,
+  "element_counts_by_type": {
+    "file": 4,
+    "class": 13,
+    "method": 77,
+    "function": 73
+  },
+  "file_ids": [
+    1,
+    "1_class_ValidationError",
+    "1_class_Shape",
+    "1_class_Shape_method___init__",
+    "1_class_Shape_method_area",
+    "1_class_Shape_method_perimeter",
+    "1_class_Shape_method___str__",
+    "1_class_Shape_method_describe",
+    "1_class_Circle",
+    "1_class_Circle_method___init__",
+    "..."
+  ]
+}

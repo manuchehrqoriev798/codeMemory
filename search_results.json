@@ -1,0 +1,116 @@
+{
+  "query": "generate_summary_report",
+  "results": [
+    {
+      "rank": 1,
+      "id": "3_function_generate_summary_report",
+      "name": "generate_summary_report",
+      "type": "function",
+      "file_path": "/home/manu/Desktop/codeMemory/code3.py",
+      "line_number": 208,
+      "content_preview": "def generate_summary_report(data: pd.DataFrame, output_path: str) -> None:\n    \"\"\"Generate a comprehensive report with statistics and basic visualizat...",
+      "embedding_preview": [
+        -0.38859325647354126,
+        0.10325707495212555,
+        0.38708311319351196,
+        0.04921315982937813,
+        0.0069105010479688644,
+        -0.44219452142715454,
+        -0.2176399976015091,
+        0.21911238133907318,
+        0.27793973684310913,
+        0.4076119661331177
+      ],
+      "match_type": "exact"
+    },
+    {
+      "rank": 2,
+      "id": "1_class_RegularPolygon",
+      "name": "RegularPolygon",
+      "type": "Class",
+      "file_path": "/home/manu/Desktop/codeMemory/code1.py",
+      "line_number": 226,
+      "content_preview": "class RegularPolygon(Shape):\n    \"\"\"A regular polygon with n equal sides.\"\"\"\n    \n    def __init__(self, num_sides: int, side_length: float):\n        ...",
+      "embedding_preview": [
+        -0.40151137113571167,
+        0.1823139786720276,
+        0.2005040943622589,
+        -0.013371200300753117,
+        0.5953387022018433,
+        -0.028991391882300377,
+        -0.1776643693447113,
+        0.15869690477848053,
+        0.3491233289241791,
+        0.280586302280426
+      ],
+      "match_type": "semantic"
+    },
+    {
+      "rank": 3,
+      "id": "4_class_DataPreprocessor",
+      "name": "DataPreprocessor",
+      "type": "Class",
+      "file_path": "/home/manu/Desktop/codeMemory/code4.py",
+      "line_number": 27,
+      "content_preview": "class DataPreprocessor:\n    \"\"\"Class for preprocessing data for machine learning.\"\"\"\n    \n    def __init__(self):\n        \"\"\"Initialize preprocessor w...",
+      "embedding_preview": [
+        -0.37862545251846313,
+        0.15518927574157715,
+        0.22770464420318604,
+        -0.02483402006328106,
+        0.4345886707305908,
+        -0.030472194775938988,
+        -0.08792562037706375,
+        0.11845539510250092,
+        0.36720752716064453,
+        0.23718616366386414
+      ],
+      "match_type": "semantic"
+    },
+    {
+      "rank": 4,
+      "id": "4_function_fit_transform_numerical",
+      "name": "fit_transform_numerical",
+      "type": "Function",
+      "file_path": "/home/manu/Desktop/codeMemory/code4.py",
+      "line_number": 36,
+      "content_preview": "def fit_transform_numerical(self, X: pd.DataFrame, method: str = 'standard') -> pd.DataFrame:\n        \"\"\"Fit and transform numerical features.\"\"\"\n    ...",
+      "embedding_preview": [
+        -0.24034534394741058,
+        0.20469224452972412,
+        0.35360634326934814,
+        0.1538705825805664,
+        -0.1603149175643921,
+        -0.5326297879219055,
+        -0.11205436289310455,
+        0.10468335449695587,
+        0.3629007637500763,
+        0.38082149624824524
+      ],
+      "match_type": "semantic"
+    },
+    {
+      "rank": 5,
+      "id": "3_function_get_summary_statistics",
+      "name": "get_summary_statistics",
+      "type": "Function",
+      "file_path": "/home/manu/Desktop/codeMemory/code3.py",
+      "line_number": 70,
+      "content_preview": "def get_summary_statistics(self) -> Dict[str, Dict[str, float]]:\n        \"\"\"Calculate summary statistics for numerical columns.\"\"\"\n        if self.pro...",
+      "embedding_preview": [
+        -0.3932079076766968,
+        0.04859788343310356,
+        0.3406793773174286,
+        0.03244807943701744,
+        -0.23572547733783722,
+        -0.5121899843215942,
+        -0.12203902006149292,
+        0.2097804695367813,
+        0.2495996057987213,
+        0.33258873224258423
+      ],
+      "match_type": "semantic"
+    }
+  ],
+  "total": 5
+}

@@ -1,0 +1,105 @@
+{
+  "query": "main",
+  "matches": [
+    {
+      "rank": 1,
+      "id": "2_function_main",
+      "name": "main",
+      "type": "Function",
+      "file_path": "/home/manu/Desktop/codeMemory/code2.py",
+      "content_preview": "def main():\n    \"\"\"Demonstrate the use of the mathematical functions.\"\"\"\n    print(\"Factorial of 5:\"...",
+      "embedding_preview": [
+        -0.3460906445980072,
+        0.06365858018398285,
+        0.2766825258731842,
+        -0.00810150895267725,
+        0.2589709162712097,
+        -0.3734819293022156,
+        -0.16478300094604492,
+        0.21271422505378723,
+        0.1849406659603119,
+        0.13603825867176056
+      ]
+    },
+    {
+      "rank": 2,
+      "id": "3_function_main",
+      "name": "main",
+      "type": "Function",
+      "file_path": "/home/manu/Desktop/codeMemory/code3.py",
+      "content_preview": "def main():\n    \"\"\"Demonstrate the use of data processing and visualization functions.\"\"\"\n    # Crea...",
+      "embedding_preview": [
+        -0.37575557827949524,
+        0.0691150352358818,
+        0.30039817094802856,
+        -0.008795924484729767,
+        0.2811684310436249,
+        -0.40549466013908386,
+        -0.17890724539756775,
+        0.230946883559227,
+        0.20079272985458374,
+        0.14769867062568665
+      ]
+    },
+    {
+      "rank": 3,
+      "id": "4_function_main",
+      "name": "main",
+      "type": "Function",
+      "file_path": "/home/manu/Desktop/codeMemory/code4.py",
+      "content_preview": "def main():\n    \"\"\"Demonstrate the use of ML utilities.\"\"\"\n    # Create sample data\n    np.random.se...",
+      "embedding_preview": [
+        -0.37575557827949524,
+        0.0691150352358818,
+        0.30039817094802856,
+        -0.008795924484729767,
+        0.2811684310436249,
+        -0.40549466013908386,
+        -0.17890724539756775,
+        0.230946883559227,
+        0.20079272985458374,
+        0.14769867062568665
+      ]
+    },
+    {
+      "rank": 4,
+      "id": "1_class_Shape_method_perimeter",
+      "name": "perimeter",
+      "type": "Method",
+      "file_path": "/home/manu/Desktop/codeMemory/code1.py",
+      "content_preview": "def perimeter(self) -> float:\n        \"\"\"Calculate the perimeter of the shape.\"\"\"\n        pass",
+      "embedding_preview": [
+        -0.41301897168159485,
+        -0.010193433612585068,
+        0.2726907730102539,
+        -0.06029978767037392,
+        0.2453053742647171,
+        -0.3808458745479584,
+        -0.15656323730945587,
+        0.20611804723739624,
+        0.23017533123493195,
+        0.11375533789396286
+      ]
+    },
+    {
+      "rank": 5,
+      "id": "1_class_Shape_method_describe",
+      "name": "describe",
+      "type": "Method",
+      "file_path": "/home/manu/Desktop/codeMemory/code1.py",
+      "content_preview": "def describe(self) -> Dict[str, Union[str, float]]:\n        \"\"\"Return a dictionary with the shape's ...",
+      "embedding_preview": [
+        -0.3222827911376953,
+        -0.07958455383777618,
+        0.317562460899353,
+        0.022479398176074028,
+        0.13147908449172974,
+        -0.30533507466316223,
+        -0.18338432908058167,
+        0.1433306336402893,
+        0.17733460664749146,
+        0.11356280744075775
+      ]
+    }
+  ]
+}
