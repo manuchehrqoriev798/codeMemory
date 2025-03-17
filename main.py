@@ -187,7 +187,12 @@ class CodeMemoryAI:
                             print(method['code'])
                             description = input("Enter description: ")
                     
-                    # Store method in Neo4j with all attributes
+                    # Include relationship information in the database
+                    input_params = method.get('params', [])
+                    return_type = method.get('return_type', 'unknown')
+                    called_functions = method.get('called_functions', [])
+                    
+                    # Store method with additional info
                     self.neo4j.create_method_node(
                         method_id=method_id,
                         name=method['name'],
@@ -196,7 +201,10 @@ class CodeMemoryAI:
                         weights=method.get('weights', {}),
                         class_id=class_id,
                         file_path=os.path.abspath(file_path),
-                        description=description
+                        description=description,
+                        input_params=input_params,
+                        return_type=return_type,
+                        called_functions=called_functions
                     )
             
             # Process standalone functions
@@ -218,7 +226,12 @@ class CodeMemoryAI:
                         print(func['code'])
                         description = input("Enter description: ")
                 
-                # Store function in Neo4j with all attributes
+                # Include relationship information in the database
+                input_params = func.get('params', [])
+                return_type = func.get('return_type', 'unknown')
+                called_functions = func.get('called_functions', [])
+                
+                # Store function with additional info
                 self.neo4j.create_function_node(
                     function_id=func_id,
                     name=func['name'],
@@ -227,7 +240,10 @@ class CodeMemoryAI:
                     weights=func.get('weights', {}),
                     file_id=file_id,
                     file_path=os.path.abspath(file_path),
-                    description=description
+                    description=description,
+                    input_params=input_params,
+                    return_type=return_type,
+                    called_functions=called_functions
                 )
             
             print(f"\nFile {file_path} processed successfully.")

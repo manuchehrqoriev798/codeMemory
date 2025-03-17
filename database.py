@@ -116,8 +116,8 @@ class Neo4jConnection:
             )
             print(f"Class {class_id} created and linked to File {file_id}.")
 
-    def create_function_node(self, function_id, name, content, line_number, weights, file_id, file_path, description, called_functions=None):
-        """Create a function node in Neo4j and link it to a File and handle CALLS relationships."""
+    def create_function_node(self, function_id, name, line_number, weights, file_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None):
+        """Create a function node and link it to a file."""
         with self.driver.session() as session:
             session.run(
                 """
@@ -126,9 +126,12 @@ class Neo4jConnection:
                     name: $name,
                     line_number: $line_number,
                     weights: $weights,
+                    file_id: $file_id,
                     file_path: $file_path,
                     content: $content,
-                    description: $description
+                    description: $description,
+                    input_params: $input_params,
+                    return_type: $return_type
                 })
                 WITH f
                 MATCH (file:File {file_id: $file_id})
@@ -141,7 +144,9 @@ class Neo4jConnection:
                 file_id=file_id,
                 file_path=file_path,
                 content=content,
-                description=description
+                description=description,
+                input_params=str(input_params) if input_params else None,
+                return_type=return_type
             )
             print(f"Function {function_id} created and linked to File {file_id}.")
 
@@ -171,7 +176,7 @@ class Neo4jConnection:
                         )
                         print(f"  {function_id} CALLS {target_func_id}")
 
-    def create_method_node(self, method_id, name, line_number, weights, class_id, file_path=None, content=None, description=None):
+    def create_method_node(self, method_id, name, line_number, weights, class_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None):
         """Create a method node and link it to a class."""
         with self.driver.session() as session:
             session.run(
@@ -183,7 +188,9 @@ class Neo4jConnection:
                     weights: $weights,
                     file_path: $file_path,
                     content: $content,
-                    description: $description
+                    description: $description,
+                    input_params: $input_params,
+                    return_type: $return_type
                 })
                 WITH m
                 MATCH (c:Class {class_id: $class_id})
@@ -196,9 +203,41 @@ class Neo4jConnection:
                 class_id=class_id,
                 file_path=file_path,
                 content=content,
-                description=description
+                description=description,
+                input_params=str(input_params) if input_params else None,
+                return_type=return_type
             )
             print(f"Method {method_id} created and linked to Class {class_id}.")
+
+            if called_functions:
+                for called_function_name in called_functions:
+                    # Find the called function or method
+                    called_func_result = session.run(
+                        """
+                        MATCH (target_func)
+                        WHERE (target_func:Function OR target_func:Method) AND target_func.name = $called_function_name
+                        RETURN target_func
+                        """,
+                        called_function_name=called_function_name
+                    )
+                    target_func_node = called_func_result.single()
+
+                    if target_func_node:
+                        target_func = target_func_node['target_func']
+                        target_id = target_func.get('function_id') or target_func.get('method_id')
+                        
+                        session.run(
+                            """
+                            MATCH (source_method:Method {method_id: $method_id})
+                            MATCH (target_func)
+                            WHERE (target_func:Function AND target_func.function_id = $target_id) OR
+                                  (target_func:Method AND target_func.method_id = $target_id)
+                            CREATE (source_method)-[:CALLS]->(target_func)
+                            """,
+                            method_id=method_id,
+                            target_id=target_id
+                        )
+                        print(f"  {method_id} CALLS {target_id}")
 
     def get_code_element_by_id(self, element_id):
         """Retrieve a code element (function, class, method) by its ID."""

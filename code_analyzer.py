@@ -52,18 +52,19 @@ class CodeAnalyzer:
         }
 
         try:
-            with open(file_path, 'r') as file:
-                content = file.read()
-                analysis_result['content'] = content
-                tree = ast.parse(content)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+                analysis_result['content'] = file_content
+                tree = ast.parse(file_content)
 
-                for node in ast.walk(tree):
+                # Extract all functions and classes
+                for node in ast.iter_child_nodes(tree):
                     if isinstance(node, ast.FunctionDef):
-                        function_info = self._analyze_function(node, content)
+                        function_info = self._analyze_function(node, file_content)
                         if function_info:
                             analysis_result['functions'].append(function_info)
                     elif isinstance(node, ast.ClassDef):
-                        class_info = self._analyze_class(node, content)
+                        class_info = self._analyze_class(node, file_content)
                         if class_info:
                             analysis_result['classes'].append(class_info)
 
@@ -89,16 +90,24 @@ class CodeAnalyzer:
         code_lines = ast.get_source_segment(file_content, node).splitlines()
         code = '\n'.join(code_lines)
         weights = self._calculate_path_weights(code)
+        
+        # Extract input parameters
         params = self._extract_params(node)
-        called_functions = self._extract_function_calls(node) # Extract called functions
+        
+        # Extract return type
+        return_type = self._extract_return_type(node)
+        
+        # Extract function calls
+        called_functions = self._extract_function_calls(node)
 
         return {
             'name': function_name,
             'code': code,
             'line_number': node.lineno,
             'params': params,
+            'return_type': return_type,
             'weights': weights,
-            'called_functions': called_functions # Add called functions to analysis
+            'called_functions': called_functions
         }
 
     def _analyze_class(self, node: ast.ClassDef, file_content: str) -> Optional[Dict[str, Any]]:
@@ -146,31 +155,65 @@ class CodeAnalyzer:
         return weights
 
     def _extract_function_calls(self, node: ast.FunctionDef) -> List[str]:
-        """Extract function calls within a function node."""
+        """Extract function calls from a function definition."""
         called_functions = []
-        for child_node in ast.walk(node):
-            if isinstance(child_node, ast.Call) and isinstance(child_node.func, ast.Name):
-                called_functions.append(child_node.func.id)
+        
+        # Walk through all nodes in the function body
+        for child in ast.walk(node):
+            # Look for function calls
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Name):
+                # Add simple function name
+                func_name = child.func.id
+                if func_name not in called_functions and func_name != node.name:  # Avoid recursion
+                    called_functions.append(func_name)
+            # Handle method calls like obj.method()
+            elif isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute):
+                # This is a method call like obj.method() - ignore for simple function relationships
+                pass
+        
         return called_functions
 
     def _extract_params(self, node: ast.FunctionDef) -> List[Dict[str, str]]:
-        """Extract function parameters with types if available."""
+        """Extract parameters from a function definition with type annotations."""
         params = []
-
+        
         for arg in node.args.args:
-            param = {'name': arg.arg, 'type': None}
-
-            # Check for type annotation
-            if hasattr(arg, 'annotation') and arg.annotation:
+            param_info = {
+                'name': arg.arg,
+                'type': 'unknown'
+            }
+            
+            # Extract type annotation if present
+            if arg.annotation:
                 if isinstance(arg.annotation, ast.Name):
-                    param['type'] = arg.annotation.id
+                    param_info['type'] = arg.annotation.id
                 elif isinstance(arg.annotation, ast.Subscript):
-                    # For complex types like List[int]
-                    param['type'] = "complex"  # Simplifying complex types
-
-            params.append(param)
-
+                    # Handle complex types like List[int]
+                    try:
+                        param_info['type'] = ast.unparse(arg.annotation) if hasattr(ast, 'unparse') else str(arg.annotation)
+                    except:
+                        param_info['type'] = 'complex'
+            
+            params.append(param_info)
+        
         return params
+
+    def _extract_return_type(self, node: ast.FunctionDef) -> str:
+        """Extract the return type annotation from a function definition."""
+        if node.returns:
+            if isinstance(node.returns, ast.Name):
+                return node.returns.id
+            elif isinstance(node.returns, ast.Subscript):
+                # Handle types like List[int]
+                try:
+                    return ast.unparse(node.returns) if hasattr(ast, 'unparse') else "complex"
+                except:
+                    return "complex"
+            elif hasattr(ast, 'Constant') and isinstance(node.returns, ast.Constant) and node.returns.value is None:
+                return "None"
+        
+        # Default return type if we can't determine it
+        return "unknown"
 
     def _get_node_source(self, node: ast.AST, source: str) -> str:
         """Extract source code for a node."""
