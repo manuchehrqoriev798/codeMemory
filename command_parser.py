@@ -66,6 +66,8 @@ class CommandParser:
         help_text += "  - add <file_path>: Add a file to the project\n"
         help_text += "  - describe <element_id>: Get description of a code element\n"
         help_text += "  - search <query>: Search for code elements\n"
+        help_text += "  - rebuild: Rebuild all call relationships\n"
+        help_text += "  - fix_files: Ensure all files are connected to the default project\n"
         help_text += "  - help: Show this help text\n"
         help_text += "  - quit: Exit the program"
         return help_text

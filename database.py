@@ -42,18 +42,37 @@ class Neo4jConnection:
     def create_file(self, file_id, file_name, file_path, content, project_id):
         """Create a file node and link it to a project."""
         with self.driver.session() as session:
-            session.run(
-                """
-                CREATE (f:File {file_id: $file_id, file_name: $file_name, 
-                                file_path: $file_path, content: $content})
-                WITH f
-                MATCH (p:Project {project_id: $project_id})
-                CREATE (f)-[:BELONGS_TO]->(p)
-                """,
-                file_id=file_id, file_name=file_name, file_path=file_path, 
-                content=content, project_id=project_id
-            )
-            print(f"File {file_id} created and linked to Project {project_id}.")
+            # Check if file already exists
+            file_exists = session.run(
+                "MATCH (f:File {file_id: $file_id}) RETURN f",
+                file_id=file_id
+            ).single()
+            
+            if file_exists:
+                # File exists, just ensure it's linked to the project
+                session.run(
+                    """
+                    MATCH (f:File {file_id: $file_id})
+                    MATCH (p:Project {project_id: $project_id})
+                    MERGE (f)-[:BELONGS_TO]->(p)
+                    """,
+                    file_id=file_id, project_id=project_id
+                )
+                print(f"File {file_id} already exists, ensured link to Project {project_id}.")
+            else:
+                # Create new file and link to project
+                session.run(
+                    """
+                    CREATE (f:File {file_id: $file_id, file_name: $file_name, 
+                                    file_path: $file_path, content: $content})
+                    WITH f
+                    MATCH (p:Project {project_id: $project_id})
+                    CREATE (f)-[:BELONGS_TO]->(p)
+                    """,
+                    file_id=file_id, file_name=file_name, file_path=file_path, 
+                    content=content, project_id=project_id
+                )
+                print(f"File {file_id} created and linked to Project {project_id}.")
 
     def create_goal(self, goal_id, description, status, priority, file_id=None):
         """Create a goal node, optionally linking it to a file."""
@@ -118,130 +137,129 @@ class Neo4jConnection:
 
     def create_function_node(self, function_id, name, line_number, weights, file_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None, calls_list=None):
         """Create a function node and link it to a file."""
-        with self.driver.session() as session:
-            session.run(
-                """
-                CREATE (f:Function {
-                    function_id: $function_id,
-                    name: $name,
-                    line_number: $line_number,
-                    weights: $weights,
-                    file_id: $file_id,
-                    file_path: $file_path,
-                    content: $content,
-                    description: $description,
-                    input_params: $input_params,
-                    return_type: $return_type,
-                    calls_list: $calls_list
-                })
-                WITH f
-                MATCH (file:File {file_id: $file_id})
-                CREATE (f)-[:DEFINED_IN]->(file)
-                """,
-                function_id=function_id,
-                name=name,
-                line_number=line_number,
-                weights=str(weights),
-                file_id=file_id,
-                file_path=file_path,
-                content=content,
-                description=description,
-                input_params=str(input_params) if input_params else None,
-                return_type=return_type,
-                calls_list=calls_list
-            )
-            print(f"Function {function_id} created and linked to File {file_id}.")
+        try:
+            with self.driver.session() as session:
+                # First ensure file exists and is connected to a project
+                file_result = session.run(
+                    """
+                    MATCH (f:File {file_id: $file_id})
+                    OPTIONAL MATCH (f)-[:BELONGS_TO]->(p:Project)
+                    RETURN f, p
+                    """,
+                    file_id=file_id
+                ).single()
+                
+                if not file_result:
+                    print(f"Warning: File {file_id} not found when creating function {function_id}")
+                
+                # Create function node and link to file
+                session.run(
+                    """
+                    CREATE (f:Function {
+                        function_id: $function_id,
+                        name: $name,
+                        line_number: $line_number,
+                        weights: $weights,
+                        file_path: $file_path,
+                        content: $content,
+                        description: $description,
+                        input_params: $input_params,
+                        return_type: $return_type,
+                        calls_list: $calls_list
+                    })
+                    WITH f
+                    MATCH (file:File {file_id: $file_id})
+                    CREATE (f)-[:DEFINED_IN]->(file)
+                    """,
+                    function_id=function_id,
+                    name=name,
+                    line_number=line_number,
+                    weights=str(weights),
+                    file_id=file_id,
+                    file_path=file_path,
+                    content=content,
+                    description=description,
+                    input_params=str(input_params) if input_params else None,
+                    return_type=return_type,
+                    calls_list=calls_list
+                )
+                print(f"Function {function_id} created and linked to File {file_id}.")
 
-            if called_functions:
-                for called_function_name in called_functions:
-                    # Find the called function node (simplifying assumption: functions in the same file)
-                    called_func_result = session.run(
-                        """
-                        MATCH (target_func:Function {name: $called_function_name, file_id: $file_id})
-                        RETURN target_func
-                        """,
-                        called_function_name=called_function_name,
-                        file_id=file_id
-                    )
-                    target_func_node = called_func_result.single()
-
-                    if target_func_node:
-                        target_func_id = target_func_node['target_func']['function_id']
+                # Process function calls with explicit CALL relationship creation
+                if called_functions:
+                    for called_function_name in called_functions:
+                        # Create CALLS relationship with explicit query
                         session.run(
                             """
-                            MATCH (source_func:Function {function_id: $function_id})
-                            MATCH (target_func:Function {function_id: $target_func_id})
-                            CREATE (source_func)-[:CALLS]->(target_func)
+                            MATCH (source:Function {function_id: $function_id})
+                            MATCH (target)
+                            WHERE (target:Function AND target.name = $called_function_name) OR 
+                                  (target:Method AND target.name = $called_function_name)
+                            CREATE (source)-[:CALLS]->(target)
                             """,
                             function_id=function_id,
-                            target_func_id=target_func_id
+                            called_function_name=called_function_name
                         )
-                        print(f"  {function_id} CALLS {target_func_id}")
+                        print(f"  Created CALLS relationship: {function_id} -> {called_function_name}")
+        except Exception as e:
+            print(f"Error creating function node: {e}")
+            logger.error(f"Error creating function node: {e}")
 
     def create_method_node(self, method_id, name, line_number, weights, class_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None, calls_list=None):
         """Create a method node and link it to a class."""
-        with self.driver.session() as session:
-            session.run(
-                """
-                CREATE (m:Method {
-                    method_id: $method_id,
-                    name: $name,
-                    line_number: $line_number,
-                    weights: $weights,
-                    file_path: $file_path,
-                    content: $content,
-                    description: $description,
-                    input_params: $input_params,
-                    return_type: $return_type,
-                    calls_list: $calls_list
-                })
-                WITH m
-                MATCH (c:Class {class_id: $class_id})
-                CREATE (m)-[:BELONGS_TO]->(c)
-                """,
-                method_id=method_id,
-                name=name,
-                line_number=line_number,
-                weights=str(weights),
-                class_id=class_id,
-                file_path=file_path,
-                content=content,
-                description=description,
-                input_params=str(input_params) if input_params else None,
-                return_type=return_type,
-                calls_list=calls_list
-            )
-            print(f"Method {method_id} created and linked to Class {class_id}.")
+        try:
+            with self.driver.session() as session:
+                session.run(
+                    """
+                    CREATE (m:Method {
+                        method_id: $method_id,
+                        name: $name,
+                        line_number: $line_number,
+                        weights: $weights,
+                        file_path: $file_path,
+                        content: $content,
+                        description: $description,
+                        input_params: $input_params,
+                        return_type: $return_type,
+                        calls_list: $calls_list
+                    })
+                    WITH m
+                    MATCH (c:Class {class_id: $class_id})
+                    CREATE (m)-[:BELONGS_TO]->(c)
+                    """,
+                    method_id=method_id,
+                    name=name,
+                    line_number=line_number,
+                    weights=str(weights),
+                    class_id=class_id,
+                    file_path=file_path,
+                    content=content,
+                    description=description,
+                    input_params=str(input_params) if input_params else None,
+                    return_type=return_type,
+                    calls_list=calls_list
+                )
+                print(f"Method {method_id} created and linked to Class {class_id}.")
 
-            if called_functions:
-                for called_function_name in called_functions:
-                    # Find the called function or method
-                    called_func_result = session.run(
-                        """
-                        MATCH (target_func)
-                        WHERE (target_func:Function OR target_func:Method) AND target_func.name = $called_function_name
-                        RETURN target_func
-                        """,
-                        called_function_name=called_function_name
-                    )
-                    target_func_node = called_func_result.single()
-
-                    if target_func_node:
-                        target_func = target_func_node['target_func']
-                        target_id = target_func.get('function_id') or target_func.get('method_id')
-                        
+                # Process method calls with explicit CALL relationship creation
+                if called_functions:
+                    for called_function_name in called_functions:
+                        # Create CALLS relationship with explicit query
                         session.run(
                             """
-                            MATCH (source_method:Method {method_id: $method_id})
-                            MATCH (target_func)
-                            WHERE (target_func:Function AND target_func.function_id = $target_id) OR
-                                  (target_func:Method AND target_func.method_id = $target_id)
-                            CREATE (source_method)-[:CALLS]->(target_func)
+                            MATCH (source:Method {method_id: $method_id})
+                            MATCH (target)
+                            WHERE (target:Function AND target.name = $called_function_name) OR 
+                                  (target:Method AND target.name = $called_function_name)
+                            CREATE (source)-[:CALLS]->(target)
                             """,
                             method_id=method_id,
-                            target_id=target_id
+                            called_function_name=called_function_name
                         )
-                        print(f"  {method_id} CALLS {target_id}")
+                        print(f"  Created CALLS relationship: {method_id} -> {called_function_name}")
+        except Exception as e:
+            print(f"Error creating method node: {e}")
+            logger.error(f"Error creating method node: {e}")
 
     def get_code_element_by_id(self, element_id):
         """Retrieve a code element (function, class, method) by its ID."""
@@ -258,3 +276,72 @@ class Neo4jConnection:
             if record:
                 return dict(record["e"])
             return None
+
+    def rebuild_call_relationships(self):
+        """Rebuild all CALLS relationships based on stored calls_list attributes."""
+        with self.driver.session() as session:
+            # First, remove all existing CALLS relationships
+            session.run("MATCH ()-[r:CALLS]->() DELETE r")
+            print("Removed all existing CALLS relationships")
+            
+            # Get all elements with calls_list
+            result = session.run("""
+                MATCH (n) 
+                WHERE n.calls_list IS NOT NULL AND n.calls_list <> ''
+                RETURN COALESCE(n.function_id, n.method_id) as id, n.calls_list as calls_list, labels(n)[0] as type
+            """)
+            
+            count = 0
+            for record in result:
+                source_id = record["id"]
+                source_type = record["type"]
+                calls_list = record["calls_list"].split(',')
+                
+                for target_name in calls_list:
+                    if target_name:
+                        # Create CALLS relationship
+                        session.run("""
+                            MATCH (source) WHERE (source:Function AND source.function_id = $source_id) OR (source:Method AND source.method_id = $source_id)
+                            MATCH (target) WHERE target.name = $target_name
+                            MERGE (source)-[:CALLS]->(target)
+                        """, source_id=source_id, target_name=target_name)
+                        count += 1
+            
+            print(f"Rebuilt {count} CALLS relationships")
+            return count
+
+    def ensure_all_files_connected_to_project(self, project_id="project_code_memory"):
+        """Ensure all files are connected to a project.
+        
+        This utility method will find any files not connected to any project
+        and connect them to the specified project ID.
+        """
+        with self.driver.session() as session:
+            # Find files not connected to any project
+            result = session.run(
+                """
+                MATCH (f:File)
+                WHERE NOT (f)-[:BELONGS_TO]->(:Project)
+                RETURN f.file_id as file_id
+                """,
+            )
+            
+            orphaned_files = [record["file_id"] for record in result]
+            
+            if not orphaned_files:
+                print("All files are already connected to projects.")
+                return 0
+            
+            # Connect orphaned files to the specified project
+            for file_id in orphaned_files:
+                session.run(
+                    """
+                    MATCH (f:File {file_id: $file_id})
+                    MATCH (p:Project {project_id: $project_id})
+                    CREATE (f)-[:BELONGS_TO]->(p)
+                    """,
+                    file_id=file_id, project_id=project_id
+                )
+            
+            print(f"Connected {len(orphaned_files)} orphaned files to Project {project_id}.")
+            return len(orphaned_files)

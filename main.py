@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+import re
 from typing import Dict, Any, Optional
 from command_parser import CommandParser, confirm_action
 from code_analyzer import CodeAnalyzer
@@ -73,6 +74,8 @@ class CodeMemoryAI:
         """Set up the Neo4j database with necessary constraints."""
         try:
             self.neo4j.create_constraints()
+            # Ensure all files are connected to the default project
+            self.neo4j.ensure_all_files_connected_to_project(self.default_project_id)
             logger.info("Database initialized with constraints")
         except Exception as e:
             logger.error(f"Error setting up database: {e}")
@@ -274,7 +277,22 @@ class CodeMemoryAI:
     
     def process_search_command(self, query: str) -> None:
         """Process a search command."""
-        results = self.code_search.search(query)
+        
+        # Check if query has a focus area specified
+        focus_area = None
+        focus_pattern = r'in\s+([a-zA-Z_]+)\s+context'
+        focus_match = re.search(focus_pattern, query)
+        if focus_match:
+            potential_focus = focus_match.group(1).lower()
+            # Check if it's a valid functional path
+            valid_paths = self.code_analyzer.functional_paths.keys()
+            if potential_focus in valid_paths:
+                focus_area = potential_focus
+                # Remove the focus area specification from the query
+                query = re.sub(focus_pattern, '', query).strip()
+        
+        # Perform the search with focus area if specified
+        results = self.code_search.search(query, focus_area=focus_area)
         self._display_search_results(results)
     
     def process_help_command(self) -> None:
@@ -286,6 +304,21 @@ class CodeMemoryAI:
         """Process an unknown command."""
         print(f"Unknown command: {text}")
         print("Type 'help' to see available commands.")
+    
+    def process_rebuild_command(self) -> None:
+        """Process a rebuild command to rebuild all relationships."""
+        print("Rebuilding call relationships...")
+        count = self.neo4j.rebuild_call_relationships()
+        print(f"Rebuilt {count} call relationships successfully.")
+    
+    def process_fix_files_command(self) -> None:
+        """Process a command to ensure all files are connected to the default project."""
+        print("Checking for files not connected to any project...")
+        count = self.neo4j.ensure_all_files_connected_to_project(self.default_project_id)
+        if count > 0:
+            print(f"Connected {count} files to the default project.")
+        else:
+            print("All files are already connected to projects.")
     
     def process_command(self, command: str) -> bool:
         """Parse and process a command."""
@@ -318,22 +351,39 @@ class CodeMemoryAI:
             return False
         elif command_type == 'unknown':
             self.process_unknown_command(parameters.get('text', ''))
+        elif command_type == 'rebuild':
+            self.process_rebuild_command()
+        elif command_type == 'fix_files':
+            self.process_fix_files_command()
         
         return True
     
     def _display_search_results(self, results: Dict[str, Any]):
-        """Display search results in a formatted way."""
+        """Display search results in a formatted way with adaptive detail."""
         if not results.get('results'):
             print("No matches found.")
             return
         
-        print(f"\nFound {results['total']} results for '{results['query']}':")
+        focus_text = f" in {results['focus_area']} context" if results.get('focus_area') else ""
+        print(f"\nFound {results['total']} results for '{results['query']}'{focus_text}:")
+        
         for result in results['results']:
             print(f"\n{result['rank']}. {result['name']} ({result['type']})")
             print(f"File: {result['file_path']}")
             if result.get('line_number'):
                 print(f"Line: {result['line_number']}")
             print(f"Preview: {result['content_preview']}")
+            
+            # Display related elements with adaptive detail
+            if result.get('related_elements'):
+                print("\nRelated Elements:")
+                for i, related in enumerate(result['related_elements']):
+                    detail_indicator = "🔍" if related['detail_level'] == "high" else "🔎" if related['detail_level'] == "medium" else "👁️"
+                    relevance = f"({related['relevance']:.2f})" if 'relevance' in related else ""
+                    print(f"  {i+1}. {detail_indicator} {related['name']} {relevance}")
+                    if related.get('description'):
+                        print(f"     {related['description']}")
+            
             print("-" * 40)
     
     def run(self):
