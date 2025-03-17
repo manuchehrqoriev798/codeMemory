@@ -1,26 +1,26 @@
 {
-  "query": "main",
+  "query": "help",
   "focus_area": null,
   "results": [
     {
       "rank": 1,
-      "id": "file_test_py_function_main",
-      "name": "main",
+      "id": "file_test_py_function_helper_function",
+      "name": "helper_function",
       "type": "Function",
       "file_path": "/home/manu/Desktop/codeMemory/test.py",
       "line_number": 0,
-      "content_preview": "def main():\n    \"\"\"Main entry point that calls process_data.\"\"\"\n    test_data = [\"apple\", \"banana\", \"cherry\"]\n    results = process_data(test_data)\n    print(results)\n    return results",
+      "content_preview": "def helper_function(param1: int, param2: str) -> str:\n    \"\"\"A helper function that formats a string.\"\"\"\n    result = f\"{param2}: {param1 * 2}\"\n    return result",
       "match_type": "exact"
     },
     {
       "rank": 2,
-      "id": "file_test3_py_function_main",
-      "name": "main",
-      "type": "Function",
-      "file_path": "/home/manu/Desktop/codeMemory/test3.py",
-      "line_number": 0,
-      "content_preview": "def main():\n    \"\"\"Main entry point that calls process_data.\"\"\"\n    test_data = [\"apple\", \"banana\", \"cherry\"]\n    results = process_data(test_data)\n    print(results)\n    return results",
-      "match_type": "exact"
+      "id": "1_class_Circle",
+      "name": "Circle",
+      "type": "class",
+      "file_path": null,
+      "line_number": null,
+      "content_preview": "class Circle:",
+      "match_type": "semantic"
     },
     {
       "rank": 3,
@@ -34,22 +34,22 @@
     },
     {
       "rank": 4,
-      "id": "1_class_Circle",
-      "name": "Circle",
-      "type": "class",
-      "file_path": null,
-      "line_number": null,
-      "content_preview": "class Circle:",
-      "match_type": "semantic"
-    },
-    {
-      "rank": 5,
       "id": "1_class_Shape",
       "name": "Shape",
       "type": "class",
       "file_path": null,
       "line_number": null,
       "content_preview": "class Shape:",
+      "match_type": "semantic"
+    },
+    {
+      "rank": 5,
+      "id": "1_class_Triangle",
+      "name": "Triangle",
+      "type": "class",
+      "file_path": null,
+      "line_number": null,
+      "content_preview": "class Triangle:",
       "match_type": "semantic"
     }
   ],

@@ -30,15 +30,28 @@ class CodeAnalyzer:
         logger.info("CodeAnalyzer initialized with %d functional paths", len(self.functional_paths))
     
     def _initialize_default_paths(self):
-        """Initialize with minimal default paths if database is not available."""
-        # Just a few basic paths as fallback
+        """Initialize with common default paths if database is not available."""
         self.functional_paths = {
+            "data_processing": 0.5,
+            "user_interface": 0.5,
+            "networking": 0.5,
+            "authentication": 0.5,
+            "file_operations": 0.5,
+            "error_handling": 0.5,
+            "algorithms": 0.5
         }
         
         self.path_keywords = {
+            "data_processing": ["data", "process", "transform", "parse", "filter", "map", "reduce"],
+            "user_interface": ["ui", "display", "render", "view", "interface", "button", "input"],
+            "networking": ["http", "request", "response", "api", "endpoint", "url", "fetch"],
+            "authentication": ["auth", "login", "password", "token", "permission", "user"],
+            "file_operations": ["file", "read", "write", "open", "close", "save", "load"],
+            "error_handling": ["error", "exception", "try", "catch", "handle", "log", "debug"],
+            "algorithms": ["sort", "search", "algorithm", "optimize", "compute", "calculate"]
         }
         
-        logger.warning("Using default paths - connect to database for complete path management")
+        logger.info("Initialized with default functional paths")
     
     def load_paths_from_database(self):
         """Load functional paths and keywords from Neo4j database."""
@@ -48,6 +61,7 @@ class CodeAnalyzer:
                 result = session.run(
                     """
                     MATCH (p:FunctionalPath)
+                    OPTIONAL MATCH (p)-[:BELONGS_TO]->(hub:FunctionalPathsHub)
                     RETURN p.name as name, p.weight as weight, p.keywords as keywords
                     """
                 )
@@ -73,6 +87,18 @@ class CodeAnalyzer:
                     logger.warning("No paths found in database, initializing defaults")
                     self._initialize_default_paths()
                     self._save_default_paths_to_database()
+                else:
+                    # Make sure there's a hub node and all paths are connected to it
+                    session.run(
+                        """
+                        MERGE (hub:FunctionalPathsHub {name: 'Functional Paths'})
+                        WITH hub
+                        MATCH (p:FunctionalPath)
+                        WHERE NOT (p)-[:BELONGS_TO]->(hub)
+                        MERGE (p)-[:BELONGS_TO]->(hub)
+                        """
+                    )
+                    logger.info("Ensured all functional paths are connected to hub")
         
         except Exception as e:
             logger.error(f"Error loading functional paths from database: {e}")
@@ -82,9 +108,21 @@ class CodeAnalyzer:
         """Save default paths to database."""
         try:
             if self.neo4j:
+                # First ensure the hub node exists
+                with self.neo4j.driver.session() as session:
+                    session.run(
+                        """
+                        MERGE (hub:FunctionalPathsHub {name: 'Functional Paths'})
+                        SET hub.updated_at = datetime()
+                        """
+                    )
+                    logger.info("Created or updated FunctionalPathsHub node")
+                
+                # Add each path and connect to the hub
                 for path_name, weight in self.functional_paths.items():
                     keywords = self.path_keywords.get(path_name, [])
                     self.add_functional_path(path_name, weight, keywords)
+                
         except Exception as e:
             logger.error(f"Error saving default paths to database: {e}")
     
@@ -108,19 +146,23 @@ class CodeAnalyzer:
         if self.neo4j:
             try:
                 with self.neo4j.driver.session() as session:
+                    # Create or update the path node and connect to hub
                     session.run(
                         """
                         MERGE (p:FunctionalPath {name: $name})
                         SET p.weight = $weight,
                             p.keywords = $keywords,
                             p.updated_at = datetime()
+                        WITH p
+                        MERGE (hub:FunctionalPathsHub {name: 'Functional Paths'})
+                        MERGE (p)-[:BELONGS_TO]->(hub)
                         """,
                         name=path_name,
                         weight=weight,
                         keywords=",".join(keywords)
                     )
-                logger.info(f"Added/updated functional path: {path_name}")
-                return True
+                    logger.info(f"Added/updated functional path: {path_name}")
+                    return True
             except Exception as e:
                 logger.error(f"Error saving functional path to database: {e}")
                 return False
@@ -149,12 +191,12 @@ class CodeAnalyzer:
                     session.run(
                         """
                         MATCH (p:FunctionalPath {name: $name})
-                        DELETE p
+                        DETACH DELETE p
                         """,
                         name=path_name
                     )
-                logger.info(f"Removed functional path: {path_name}")
-                return True
+                    logger.info(f"Removed functional path: {path_name}")
+                    return True
             except Exception as e:
                 logger.error(f"Error removing functional path from database: {e}")
                 return False
