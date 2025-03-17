@@ -116,7 +116,7 @@ class Neo4jConnection:
             )
             print(f"Class {class_id} created and linked to File {file_id}.")
 
-    def create_function_node(self, function_id, name, line_number, weights, file_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None):
+    def create_function_node(self, function_id, name, line_number, weights, file_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None, calls_list=None):
         """Create a function node and link it to a file."""
         with self.driver.session() as session:
             session.run(
@@ -131,7 +131,8 @@ class Neo4jConnection:
                     content: $content,
                     description: $description,
                     input_params: $input_params,
-                    return_type: $return_type
+                    return_type: $return_type,
+                    calls_list: $calls_list
                 })
                 WITH f
                 MATCH (file:File {file_id: $file_id})
@@ -146,7 +147,8 @@ class Neo4jConnection:
                 content=content,
                 description=description,
                 input_params=str(input_params) if input_params else None,
-                return_type=return_type
+                return_type=return_type,
+                calls_list=calls_list
             )
             print(f"Function {function_id} created and linked to File {file_id}.")
 
@@ -176,7 +178,7 @@ class Neo4jConnection:
                         )
                         print(f"  {function_id} CALLS {target_func_id}")
 
-    def create_method_node(self, method_id, name, line_number, weights, class_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None):
+    def create_method_node(self, method_id, name, line_number, weights, class_id, file_path=None, content=None, description=None, called_functions=None, called_by=None, input_params=None, return_type=None, calls_list=None):
         """Create a method node and link it to a class."""
         with self.driver.session() as session:
             session.run(
@@ -190,7 +192,8 @@ class Neo4jConnection:
                     content: $content,
                     description: $description,
                     input_params: $input_params,
-                    return_type: $return_type
+                    return_type: $return_type,
+                    calls_list: $calls_list
                 })
                 WITH m
                 MATCH (c:Class {class_id: $class_id})
@@ -205,7 +208,8 @@ class Neo4jConnection:
                 content=content,
                 description=description,
                 input_params=str(input_params) if input_params else None,
-                return_type=return_type
+                return_type=return_type,
+                calls_list=calls_list
             )
             print(f"Method {method_id} created and linked to Class {class_id}.")
 

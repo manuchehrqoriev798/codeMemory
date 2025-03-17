@@ -204,7 +204,8 @@ class CodeMemoryAI:
                         description=description,
                         input_params=input_params,
                         return_type=return_type,
-                        called_functions=called_functions
+                        called_functions=called_functions,
+                        calls_list=','.join(called_functions) if called_functions else ""
                     )
             
             # Process standalone functions
@@ -243,7 +244,8 @@ class CodeMemoryAI:
                     description=description,
                     input_params=input_params,
                     return_type=return_type,
-                    called_functions=called_functions
+                    called_functions=called_functions,
+                    calls_list=','.join(called_functions) if called_functions else ""
                 )
             
             print(f"\nFile {file_path} processed successfully.")

@@ -1,26 +1,27 @@
 """
-Additional test module with more function relationships.
+Simple test module for function relationship demonstration.
 """
 
-def helper1(x: int) -> int:
-    """Helper function 1"""
-    return x * 2
-
-def helper2(y: str) -> str:
-    """Helper function 2"""
-    return y.upper()
-
-def combine_helpers(data: dict) -> dict:
-    """Function that calls both helpers"""
-    result = {}
-    for key, value in data.items():
-        if isinstance(value, int):
-            result[key] = helper1(value)
-        elif isinstance(value, str):
-            result[key] = helper2(value)
+def helper_function(param1: int, param2: str) -> str:
+    """A helper function that formats a string."""
+    result = f"{param2}: {param1 * 2}"
     return result
 
-def process_collection(items: list) -> dict:
-    """Process a collection of items"""
-    data = {item: len(item) if isinstance(item, str) else item for item in items}
-    return combine_helpers(data)
+def process_data(data: list) -> dict:
+    """Processes a list of data and returns results."""
+    result = {}
+    for item in data:
+        # Call helper_function
+        formatted = helper_function(len(item), item)
+        result[item] = formatted
+    return result
+
+def main():
+    """Main entry point that calls process_data."""
+    test_data = ["apple", "banana", "cherry"]
+    results = process_data(test_data)
+    print(results)
+    return results
+
+if __name__ == "__main__":
+    main()
