@@ -26,6 +26,7 @@ class Neo4jConnection:
             session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:Commit) REQUIRE c.commit_id IS UNIQUE")
             session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (tr:Trace) REQUIRE tr.trace_id IS UNIQUE")
             session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (d:Dependency) REQUIRE d.dependency_id IS UNIQUE")
+            session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (fp:FunctionalPath) REQUIRE fp.name IS UNIQUE")
             print("Constraints created.")
 
     def create_project(self, project_id, goal, language):

@@ -17,7 +17,12 @@ class CommandParser:
             'describe': r'(?:describe|explain|what\s+is)\s+([a-zA-Z0-9_./-]+)',
             'search': r'(?:search|find|look\s+for)\s+(.*?)$',
             'help': r'(?:help|commands|what\s+can\s+you\s+do)',
-            'quit': r'(?:quit|exit|bye)'
+            'quit': r'(?:quit|exit|bye)',
+            'rebuild': r'(?:rebuild|reconstruct|recreate)\s*(?:relationships|connections)?',
+            'fix_files': r'(?:fix|repair|connect)\s*(?:files|connections)',
+            'paths': r'(?:paths|show\s+paths|list\s+paths)$',
+            'add_path': r'(?:add_path)$',
+            'remove_path': r'(?:remove_path)$'
         }
         logger.info("CommandParser initialized with %d command patterns", len(self.command_patterns))
     
@@ -68,6 +73,9 @@ class CommandParser:
         help_text += "  - search <query>: Search for code elements\n"
         help_text += "  - rebuild: Rebuild all call relationships\n"
         help_text += "  - fix_files: Ensure all files are connected to the default project\n"
+        help_text += "  - paths: List all functional paths\n"
+        help_text += "  - add_path: Add or update a functional path\n"
+        help_text += "  - remove_path: Remove a functional path\n"
         help_text += "  - help: Show this help text\n"
         help_text += "  - quit: Exit the program"
         return help_text

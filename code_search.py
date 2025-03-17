@@ -231,13 +231,32 @@ class CodeSearch:
             except:
                 weights = {}
             
-            # Calculate Energy Decay Coefficient based on path relevance
-            focus_weight = weights.get(focus_area, 0.1)
-            edc = 1.0 - (focus_weight * 0.8)  # Higher relevance = lower decay
+            # Enhanced Energy Decay Coefficient calculation
+            # Calculate EDC based on path relevance to focus area
+            if focus_area in weights:
+                # Higher relevance = lower decay (more energy preserved)
+                focus_weight = weights.get(focus_area, 0.1)
+                
+                # Enhanced formula: EDC is inversely proportional to the relevance
+                # This means high relevance (high weight) = low decay
+                # We use a logarithmic scale to better differentiate between weights
+                # and add a small constant to avoid division by zero
+                import math
+                edc = 1.0 - (0.7 * math.log(1 + 9 * focus_weight))
+                
+                # Adjust based on depth - deeper traversal should decay faster
+                depth_factor = 1.0 - (depth / (max_depth * 2))
+                edc = max(0.1, edc * depth_factor)
+            else:
+                # If path has no relevance to focus area, decay quickly
+                edc = 0.5 + (0.1 * depth)  # Higher depth = faster decay
             
             # Apply decay to energy and description coefficient
             new_energy = energy * edc
             new_dc = dc * edc
+            
+            # Calculate relevance score for sorting/filtering
+            relevance = weights.get(focus_area, 0.1) if focus_area else sum(weights.values()) / max(1, len(weights))
             
             # Add to related elements with detail level based on DC
             detail_level = "high" if new_dc > 0.7 else "medium" if new_dc > 0.4 else "low"
@@ -245,8 +264,9 @@ class CodeSearch:
                 "id": called_id,
                 "name": called.get("name", "Unknown"),
                 "type": called.get("type", "Unknown"),
-                "relevance": focus_weight,
+                "relevance": relevance,
                 "detail_level": detail_level,
+                "energy_level": round(new_energy, 2),  # Add energy level for debugging/visualization
                 "description": self._get_element_description(called, detail_level)
             })
             

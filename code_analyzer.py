@@ -11,25 +11,168 @@ logger = logging.getLogger(__name__)
 class CodeAnalyzer:
     """Analyzes Python code to extract functions, classes and their relationships."""
     
-    def __init__(self):
-        """Initialize code analyzer with functional paths and keywords."""
-        # Define functional paths for classification with base weights
-        self.functional_paths = {
-            "data_processing": 0.8,
-            "mathematical_operations": 0.9,
-            "validation": 0.6,
-            "utility_functions": 0.5
-        }
+    def __init__(self, neo4j_connection=None):
+        """Initialize code analyzer with dynamic functional paths and keywords."""
+        # Initialize connection to Neo4j for path storage
+        self.neo4j = neo4j_connection
         
-        # Keywords associated with each path for automatic classification
-        self.path_keywords = {
-            "data_processing": ["data", "process", "clean", "transform", "filter", "map", "reduce"],
-            "mathematical_operations": ["calc", "compute", "math", "average", "sum", "multiply", "divide"],
-            "validation": ["valid", "check", "verify", "assert", "ensure", "sanitize"],
-            "utility_functions": ["util", "helper", "format", "convert", "parse"]
-        }
+        # Initialize empty dictionaries for paths and keywords
+        self.functional_paths = {}
+        self.path_keywords = {}
+        
+        # Load paths from database if connection is provided
+        if self.neo4j:
+            self.load_paths_from_database()
+        else:
+            # Default fallback paths if no database connection
+            self._initialize_default_paths()
         
         logger.info("CodeAnalyzer initialized with %d functional paths", len(self.functional_paths))
+    
+    def _initialize_default_paths(self):
+        """Initialize with minimal default paths if database is not available."""
+        # Just a few basic paths as fallback
+        self.functional_paths = {
+        }
+        
+        self.path_keywords = {
+        }
+        
+        logger.warning("Using default paths - connect to database for complete path management")
+    
+    def load_paths_from_database(self):
+        """Load functional paths and keywords from Neo4j database."""
+        try:
+            with self.neo4j.driver.session() as session:
+                # Query for paths
+                result = session.run(
+                    """
+                    MATCH (p:FunctionalPath)
+                    RETURN p.name as name, p.weight as weight, p.keywords as keywords
+                    """
+                )
+                
+                # Reset paths
+                self.functional_paths = {}
+                self.path_keywords = {}
+                
+                # Process results
+                for record in result:
+                    path_name = record["name"]
+                    weight = record["weight"]
+                    keywords = record["keywords"].split(",") if record["keywords"] else []
+                    
+                    # Store in dictionaries
+                    self.functional_paths[path_name] = weight
+                    self.path_keywords[path_name] = keywords
+                
+                logger.info(f"Loaded {len(self.functional_paths)} functional paths from database")
+                
+                # If no paths were found, initialize defaults
+                if not self.functional_paths:
+                    logger.warning("No paths found in database, initializing defaults")
+                    self._initialize_default_paths()
+                    self._save_default_paths_to_database()
+        
+        except Exception as e:
+            logger.error(f"Error loading functional paths from database: {e}")
+            self._initialize_default_paths()
+    
+    def _save_default_paths_to_database(self):
+        """Save default paths to database."""
+        try:
+            if self.neo4j:
+                for path_name, weight in self.functional_paths.items():
+                    keywords = self.path_keywords.get(path_name, [])
+                    self.add_functional_path(path_name, weight, keywords)
+        except Exception as e:
+            logger.error(f"Error saving default paths to database: {e}")
+    
+    def add_functional_path(self, path_name, weight, keywords=None):
+        """Add or update a functional path.
+        
+        Args:
+            path_name (str): Name of the functional path
+            weight (float): Base weight for the path
+            keywords (list): Keywords associated with this path
+        
+        Returns:
+            bool: Success status
+        """
+        keywords = keywords or []
+        # Update local dictionaries
+        self.functional_paths[path_name] = weight
+        self.path_keywords[path_name] = keywords
+        
+        # Update database if connected
+        if self.neo4j:
+            try:
+                with self.neo4j.driver.session() as session:
+                    session.run(
+                        """
+                        MERGE (p:FunctionalPath {name: $name})
+                        SET p.weight = $weight,
+                            p.keywords = $keywords,
+                            p.updated_at = datetime()
+                        """,
+                        name=path_name,
+                        weight=weight,
+                        keywords=",".join(keywords)
+                    )
+                logger.info(f"Added/updated functional path: {path_name}")
+                return True
+            except Exception as e:
+                logger.error(f"Error saving functional path to database: {e}")
+                return False
+        return True
+    
+    def remove_functional_path(self, path_name):
+        """Remove a functional path.
+        
+        Args:
+            path_name (str): Name of the path to remove
+            
+        Returns:
+            bool: Success status
+        """
+        # Remove from local dictionaries
+        if path_name in self.functional_paths:
+            del self.functional_paths[path_name]
+        
+        if path_name in self.path_keywords:
+            del self.path_keywords[path_name]
+        
+        # Remove from database if connected
+        if self.neo4j:
+            try:
+                with self.neo4j.driver.session() as session:
+                    session.run(
+                        """
+                        MATCH (p:FunctionalPath {name: $name})
+                        DELETE p
+                        """,
+                        name=path_name
+                    )
+                logger.info(f"Removed functional path: {path_name}")
+                return True
+            except Exception as e:
+                logger.error(f"Error removing functional path from database: {e}")
+                return False
+        return True
+    
+    def get_functional_paths(self):
+        """Get all functional paths.
+        
+        Returns:
+            dict: Dictionary with path information
+        """
+        paths_info = {}
+        for path_name in self.functional_paths:
+            paths_info[path_name] = {
+                "weight": self.functional_paths[path_name],
+                "keywords": self.path_keywords.get(path_name, [])
+            }
+        return paths_info
     
     def analyze_file(self, file_path: str) -> Dict[str, Any]:
         """

@@ -23,13 +23,18 @@ class CodeMemoryAI:
         # Create a default project if it doesn't exist
         self.default_project_id = "project_code_memory"
         
-        self.command_parser = CommandParser()
-        self.code_analyzer = CodeAnalyzer()
         self.neo4j = Neo4jConnection(neo4j_uri, neo4j_user, neo4j_password)
         
         # Ensure default project exists
         self._create_default_project()
         
+        # Initialize database
+        self._setup_database()
+        
+        # Initialize code analyzer with the neo4j connection
+        self.code_analyzer = CodeAnalyzer(self.neo4j)
+        
+        self.command_parser = CommandParser()
         self.faiss_index = FaissIndex()
         self.code_search = CodeSearch(
             neo4j_uri=neo4j_uri,
@@ -38,8 +43,6 @@ class CodeMemoryAI:
         )
         self.ai_descriptor = AIDescriptor()
         
-        # Initialize database
-        self._setup_database()
         logger.info("CodeMemory AI initialized successfully")
     
     def _create_default_project(self):
@@ -290,9 +293,13 @@ class CodeMemoryAI:
                 focus_area = potential_focus
                 # Remove the focus area specification from the query
                 query = re.sub(focus_pattern, '', query).strip()
+            else:
+                print(f"Warning: Unknown focus area '{potential_focus}'. Available areas: {', '.join(valid_paths)}")
+                print("Proceeding with general search...")
         
         # Perform the search with focus area if specified
-        results = self.code_search.search(query, focus_area=focus_area)
+        max_depth = 4  # Allow deeper traversal for context-rich results
+        results = self.code_search.search(query, focus_area=focus_area, max_depth=max_depth)
         self._display_search_results(results)
     
     def process_help_command(self) -> None:
@@ -319,6 +326,88 @@ class CodeMemoryAI:
             print(f"Connected {count} files to the default project.")
         else:
             print("All files are already connected to projects.")
+    
+    def process_paths_command(self):
+        """Process a command to list all functional paths."""
+        paths = self.code_analyzer.get_functional_paths()
+        
+        if not paths:
+            print("No functional paths defined yet. Use 'add_path' to create a new path.")
+            return
+        
+        print("\nFunctional Paths:")
+        print("-" * 60)
+        print(f"{'Path Name':<25} {'Weight':<10} {'Keywords'}")
+        print("-" * 60)
+        
+        for path_name, info in paths.items():
+            keywords_str = ", ".join(info['keywords'])
+            if len(keywords_str) > 30:
+                keywords_str = keywords_str[:27] + "..."
+            print(f"{path_name:<25} {info['weight']:<10.2f} {keywords_str}")
+        
+        print("\nUse 'add_path' to create a new path or update an existing one.")
+        print("Use 'remove_path <name>' to delete a path.")
+
+    def process_add_path_command(self):
+        """Process a command to add or update a functional path."""
+        print("\nAdd or Update Functional Path:")
+        
+        # Get path name
+        while True:
+            path_name = input("Path name (e.g., audio_processing): ").strip()
+            if path_name:
+                break
+            print("Path name cannot be empty.")
+        
+        # Get path weight
+        while True:
+            weight_input = input("Base weight (0.1-1.0) [default 0.5]: ").strip()
+            if not weight_input:
+                weight = 0.5
+                break
+            
+            try:
+                weight = float(weight_input)
+                if 0.1 <= weight <= 1.0:
+                    break
+                print("Weight must be between 0.1 and 1.0.")
+            except ValueError:
+                print("Please enter a valid number.")
+        
+        # Get keywords
+        keywords_input = input("Keywords (comma-separated): ").strip()
+        keywords = [k.strip() for k in keywords_input.split(",") if k.strip()]
+        
+        # Confirm
+        print("\nPath Information:")
+        print(f"Name: {path_name}")
+        print(f"Weight: {weight}")
+        print(f"Keywords: {', '.join(keywords)}")
+        
+        if not confirm_action("\nSave this path? [Enter=yes/n=no]: "):
+            print("Path creation cancelled.")
+            return
+        
+        # Add the path
+        if self.code_analyzer.add_functional_path(path_name, weight, keywords):
+            print(f"Path '{path_name}' has been added/updated successfully.")
+        else:
+            print(f"Error adding path '{path_name}'. Check logs for details.")
+
+    def process_remove_path_command(self, path_name: str):
+        """Process a command to remove a functional path."""
+        if not path_name:
+            print("Path name cannot be empty.")
+            return
+        
+        if path_name in self.code_analyzer.get_functional_paths():
+            if self.code_analyzer.remove_functional_path(path_name):
+                print(f"Path '{path_name}' has been removed successfully.")
+            else:
+                print(f"Error removing path '{path_name}'. Check logs for details.")
+        else:
+            print(f"Path '{path_name}' not found in the functional paths.")
     
     def process_command(self, command: str) -> bool:
         """Parse and process a command."""
@@ -355,6 +444,12 @@ class CodeMemoryAI:
             self.process_rebuild_command()
         elif command_type == 'fix_files':
             self.process_fix_files_command()
+        elif command_type == 'paths':
+            self.process_paths_command()
+        elif command_type == 'add_path':
+            self.process_add_path_command()
+        elif command_type == 'remove_path':
+            self.process_remove_path_command(parameters.get('path_name', ''))
         
         return True
     
@@ -376,10 +471,16 @@ class CodeMemoryAI:
             
             # Display related elements with adaptive detail
             if result.get('related_elements'):
+                # Sort related elements by relevance 
+                sorted_related = sorted(result['related_elements'], 
+                                        key=lambda x: x.get('relevance', 0), 
+                                        reverse=True)
+                
                 print("\nRelated Elements:")
-                for i, related in enumerate(result['related_elements']):
+                for i, related in enumerate(sorted_related):
                     detail_indicator = "🔍" if related['detail_level'] == "high" else "🔎" if related['detail_level'] == "medium" else "👁️"
-                    relevance = f"({related['relevance']:.2f})" if 'relevance' in related else ""
+                    energy_level = related.get('energy_level', 0)
+                    relevance = f"(relevance: {related['relevance']:.2f}, energy: {energy_level})" if 'relevance' in related else ""
                     print(f"  {i+1}. {detail_indicator} {related['name']} {relevance}")
                     if related.get('description'):
                         print(f"     {related['description']}")
