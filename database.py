@@ -44,13 +44,14 @@ class Neo4jConnection:
         with self.driver.session() as session:
             session.run(
                 """
-                CREATE (f:File {file_id: $file_id, file_name: $file_name, file_path: $file_path, 
-                                content: $content, last_updated: datetime()})
+                CREATE (f:File {file_id: $file_id, file_name: $file_name, 
+                                file_path: $file_path, content: $content})
                 WITH f
                 MATCH (p:Project {project_id: $project_id})
                 CREATE (f)-[:BELONGS_TO]->(p)
                 """,
-                file_id=file_id, file_name=file_name, file_path=file_path, content=content, project_id=project_id
+                file_id=file_id, file_name=file_name, file_path=file_path, 
+                content=content, project_id=project_id
             )
             print(f"File {file_id} created and linked to Project {project_id}.")
 
@@ -86,7 +87,7 @@ class Neo4jConnection:
         with self.driver.session() as session:
             return session.run(query, **params)
 
-    def create_class_node(self, class_id, name, line_number, weights, file_id):
+    def create_class_node(self, class_id, name, line_number, weights, file_id, file_path=None, content=None, description=None):
         """Create a class node and link it to a file."""
         with self.driver.session() as session:
             session.run(
@@ -95,7 +96,10 @@ class Neo4jConnection:
                     class_id: $class_id,
                     name: $name,
                     line_number: $line_number,
-                    weights: $weights
+                    weights: $weights,
+                    file_path: $file_path,
+                    content: $content,
+                    description: $description
                 })
                 WITH c
                 MATCH (f:File {file_id: $file_id})
@@ -105,12 +109,15 @@ class Neo4jConnection:
                 name=name,
                 line_number=line_number,
                 weights=str(weights),
-                file_id=file_id
+                file_id=file_id,
+                file_path=file_path,
+                content=content,
+                description=description
             )
             print(f"Class {class_id} created and linked to File {file_id}.")
 
-    def create_function_node(self, function_id, name, line_number, weights, file_id):
-        """Create a function node and link it to a file."""
+    def create_function_node(self, function_id, name, content, line_number, weights, file_id, file_path, description, called_functions=None):
+        """Create a function node in Neo4j and link it to a File and handle CALLS relationships."""
         with self.driver.session() as session:
             session.run(
                 """
@@ -118,21 +125,53 @@ class Neo4jConnection:
                     function_id: $function_id,
                     name: $name,
                     line_number: $line_number,
-                    weights: $weights
+                    weights: $weights,
+                    file_path: $file_path,
+                    content: $content,
+                    description: $description
                 })
                 WITH f
                 MATCH (file:File {file_id: $file_id})
-                CREATE (f)-[:BELONGS_TO]->(file)
+                CREATE (f)-[:DEFINED_IN]->(file)
                 """,
                 function_id=function_id,
                 name=name,
                 line_number=line_number,
                 weights=str(weights),
-                file_id=file_id
+                file_id=file_id,
+                file_path=file_path,
+                content=content,
+                description=description
             )
             print(f"Function {function_id} created and linked to File {file_id}.")
 
-    def create_method_node(self, method_id, name, line_number, weights, class_id):
+            if called_functions:
+                for called_function_name in called_functions:
+                    # Find the called function node (simplifying assumption: functions in the same file)
+                    called_func_result = session.run(
+                        """
+                        MATCH (target_func:Function {name: $called_function_name, file_id: $file_id})
+                        RETURN target_func
+                        """,
+                        called_function_name=called_function_name,
+                        file_id=file_id
+                    )
+                    target_func_node = called_func_result.single()
+
+                    if target_func_node:
+                        target_func_id = target_func_node['target_func']['function_id']
+                        session.run(
+                            """
+                            MATCH (source_func:Function {function_id: $function_id})
+                            MATCH (target_func:Function {function_id: $target_func_id})
+                            CREATE (source_func)-[:CALLS]->(target_func)
+                            """,
+                            function_id=function_id,
+                            target_func_id=target_func_id
+                        )
+                        print(f"  {function_id} CALLS {target_func_id}")
+
+    def create_method_node(self, method_id, name, line_number, weights, class_id, file_path=None, content=None, description=None):
         """Create a method node and link it to a class."""
         with self.driver.session() as session:
             session.run(
@@ -141,7 +180,10 @@ class Neo4jConnection:
                     method_id: $method_id,
                     name: $name,
                     line_number: $line_number,
-                    weights: $weights
+                    weights: $weights,
+                    file_path: $file_path,
+                    content: $content,
+                    description: $description
                 })
                 WITH m
                 MATCH (c:Class {class_id: $class_id})
@@ -151,7 +193,10 @@ class Neo4jConnection:
                 name=name,
                 line_number=line_number,
                 weights=str(weights),
-                class_id=class_id
+                class_id=class_id,
+                file_path=file_path,
+                content=content,
+                description=description
             )
             print(f"Method {method_id} created and linked to Class {class_id}.")
 

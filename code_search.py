@@ -13,19 +13,11 @@ logger = logging.getLogger(__name__)
 class CodeSearch:
     """Search engine for code elements using FAISS and Neo4j."""
     
-    def __init__(self, index_path="faiss_index.bin", 
-                 neo4j_uri="bolt://localhost:7687", 
+    def __init__(self, neo4j_uri="bolt://localhost:7687", 
                  neo4j_user="neo4j", 
                  neo4j_password="password"):
-        """Initialize the search engine.
-        
-        Args:
-            index_path (str): Path to the FAISS index
-            neo4j_uri (str): Neo4j connection URI
-            neo4j_user (str): Neo4j username
-            neo4j_password (str): Neo4j password
-        """
-        self.index_path = index_path
+        """Initialize the search engine."""
+        self.index_path = "faiss_index.bin"
         self.neo4j_uri = neo4j_uri
         self.neo4j_user = neo4j_user
         self.neo4j_password = neo4j_password
@@ -57,14 +49,7 @@ class CodeSearch:
             logger.info("Connected to Neo4j database")
     
     def _get_element_details(self, element_ids):
-        """Get detailed information for elements from Neo4j.
-        
-        Args:
-            element_ids (list): List of element IDs to retrieve
-            
-        Returns:
-            list: Element details from Neo4j
-        """
+        """Get detailed information for elements from Neo4j."""
         self._connect_to_neo4j()
         
         element_details = []
@@ -82,13 +67,11 @@ class CodeSearch:
                n.line_number as line_number
         """
         
-        # Collect records from Neo4j directly into a list of dictionaries
+        # Collect records from Neo4j
         records = []
         try:
-            # Instead of using run_query, use session directly to ensure proper result handling
             with self.neo4j_conn.driver.session() as session:
                 result = session.run(query, element_ids=element_ids)
-                # Collect all records into a list of dictionaries
                 for record in result:
                     record_dict = {
                         "id": record["id"],
@@ -103,7 +86,7 @@ class CodeSearch:
             logger.error(f"Error querying Neo4j: {e}")
             records = []
         
-        # Now process these records
+        # Process records
         for record in records:
             details = {
                 "id": record["id"],
@@ -115,7 +98,7 @@ class CodeSearch:
             }
             element_details.append(details)
         
-        # If some elements weren't found in Neo4j, use metadata from FAISS index
+        # Add missing elements from FAISS metadata
         found_ids = {item["id"] for item in element_details}
         for element_id in element_ids:
             if element_id not in found_ids:
@@ -134,16 +117,7 @@ class CodeSearch:
         return element_details
     
     def search(self, query, top_k=5, path_context=None):
-        """Search for code elements matching the query.
-        
-        Args:
-            query (str): Search query
-            top_k (int): Number of results to return
-            path_context (dict, optional): Path context weights
-            
-        Returns:
-            dict: Search results with element details
-        """
+        """Search for code elements matching the query."""
         logger.info(f"Searching for: '{query}' (top_k={top_k})")
         
         # Connect to Neo4j if not already connected
@@ -154,47 +128,27 @@ class CodeSearch:
         exact_matches = []
         
         # Look for exact matches in function, class, and method names
-        # Note: We're collecting the results in a list to avoid ResultConsumedError
         cypher_query = """
-        MATCH (e:Function)
-        WHERE toLower(e.name) CONTAINS toLower($query_param)
-        RETURN e.function_id AS id, e.name AS name, 'function' AS type, 
-               e.file_path AS file_path, e.line_number AS line_number, 
-               e.content AS content
-        UNION
-        MATCH (e:Class)
-        WHERE toLower(e.name) CONTAINS toLower($query_param)
-        RETURN e.class_id AS id, e.name AS name, 'class' AS type,
-               e.file_path AS file_path, e.line_number AS line_number,
-               e.content AS content
-        UNION
-        MATCH (e:Method)
-        WHERE toLower(e.name) CONTAINS toLower($query_param)
-        RETURN e.method_id AS id, e.name AS name, 'method' AS type,
-               e.file_path AS file_path, e.line_number AS line_number,
-               e.content AS content
-        UNION
-        MATCH (e:File)
-        WHERE toLower(e.file_name) CONTAINS toLower($query_param)
-        RETURN e.file_id AS id, e.file_name AS name, 'file' AS type,
-               e.file_path AS file_path, null AS line_number,
-               e.content AS content
+        MATCH (e)
+        WHERE (e:Function OR e:Class OR e:Method)
+        AND toLower(e.name) CONTAINS toLower($query_param)
+        RETURN DISTINCT
+            COALESCE(e.function_id, e.class_id, e.method_id) AS id,
+            e.name AS name,
+            labels(e)[0] as type,
+            e.file_path AS file_path,
+            e.line_number AS line_number,
+            e.content AS content
         """
         
-        # Collect the results directly into a list
-        exact_records = []
         try:
-            # Instead of using run_query which might auto-close the session
             with self.neo4j_conn.driver.session() as session:
-                result = session.run(cypher_query, query_param=query)
-                # Collect all records into a list
-                for record in result:
-                    exact_records.append(record)
+                exact_records = list(session.run(cypher_query, query_param=query))
         except Exception as e:
-            logger.error(f"Error querying Neo4j for exact matches: {e}")
+            logger.error(f"Error executing Neo4j query: {e}")
             exact_records = []
         
-        # Process the exact matches
+        # Process exact matches
         for record in exact_records:
             element_id = record.get("id")
             if element_id:
@@ -204,11 +158,11 @@ class CodeSearch:
                     "type": record.get("type", "Unknown"),
                     "file_path": record.get("file_path"),
                     "line_number": record.get("line_number"),
-                    "content": record.get("content", "")
+                    "content": record.get("content", "")  # Default to empty string if None
                 }
                 exact_matches.append(element_info)
         
-        # Then get semantic matches using FAISS
+        # Get semantic matches using FAISS
         semantic_ids = self.faiss_index.search_similar(query, top_k + len(exact_matches), path_context)
         
         # Get detailed information for semantic matches
@@ -216,18 +170,13 @@ class CodeSearch:
         exact_match_ids = [match["id"] for match in exact_matches]
         
         for element_id in semantic_ids:
-            # Skip IDs that are already in exact matches
-            if element_id in exact_match_ids:
-                continue
-            
-            details = self._get_element_details([element_id])
-            if details:
-                semantic_matches.extend(details)
+            if element_id not in exact_match_ids:
+                details = self._get_element_details([element_id])
+                if details:
+                    semantic_matches.extend(details)
         
         # Combine results, prioritizing exact matches
         combined_results = exact_matches + semantic_matches
-        
-        # Limit to top_k results
         combined_results = combined_results[:top_k]
         
         # Format results
@@ -237,8 +186,8 @@ class CodeSearch:
             embedding = self.faiss_index.get_file_embedding(element_id)
             embedding_preview = embedding[:10].tolist() if embedding is not None else []
             
-            # Format content preview
-            content = details.get("content", "")
+            # Handle None content safely
+            content = details.get("content") or ""  # Default to empty string if None
             content_preview = content[:150] + "..." if len(content) > 150 else content
             
             result = {
@@ -262,32 +211,20 @@ class CodeSearch:
         }
     
     def save_results(self, results, output_path="search_results.json"):
-        """Save search results to a JSON file.
-        
-        Args:
-            results (dict): Search results
-            output_path (str): Path to save results
-        """
+        """Save search results to a JSON file."""
         with open(output_path, "w") as f:
             json.dump(results, f, indent=2)
         logger.info(f"Search results saved to {output_path}")
     
     def get_index_summary(self):
-        """Get summary information about the FAISS index.
-        
-        Returns:
-            dict: Index summary
-        """
-        # Export summary
-        summary = self.faiss_index.export_index_summary()
-        return summary
+        """Get summary information about the FAISS index."""
+        return self.faiss_index.export_index_summary()
     
     def close(self):
         """Close all connections."""
         if self.neo4j_conn:
             self.neo4j_conn.close()
             logger.info("Closed Neo4j connection")
-
 
 def interactive_search():
     """Run an interactive search session."""
@@ -346,7 +283,6 @@ def interactive_search():
     
     finally:
         search_engine.close()
-
 
 if __name__ == "__main__":
     interactive_search() 
